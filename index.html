@@ -1,0 +1,2451 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Jean Henrique · Estoque quebrando em silêncio</title>
+  <meta name="description" content="CVL e GAE — controle de validade e análise de estoque construídos na operação.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=Playfair+Display:wght@700&family=Work+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <!-- ApexCharts para o gráfico em linhas -->
+  <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
+  <style>
+    :root{
+      --fundo:#0D0F0D;
+      --fundo-card:#131612;
+      --borda:#2A2D26;
+      --texto:#E8E8E3;
+      --corpo:#B8B8AE;
+      --muted:#7A7A70;
+      --coral:#E07A5F;
+      --coral-escuro:#A84A39;
+      --mostarda:#D4A017;
+      --musgo:#6B8E6B;
+      --terroso:#8C5A3C;
+      --cinza-quente:#5A5A52;
+      --ease:cubic-bezier(.16,1,.3,1);
+    }
+    *{margin:0;padding:0;box-sizing:border-box}
+    html{scroll-behavior:smooth}
+    body{
+      background:var(--fundo);
+      color:var(--texto);
+      font-family:'Work Sans',sans-serif;
+      line-height:1.6;
+      overflow-x:hidden;
+    }
+    .mono{font-family:'IBM Plex Mono',monospace;font-variant-numeric:tabular-nums}
+    h1,h2,h3{font-family:'Playfair Display',serif;font-weight:700;letter-spacing:-.02em;line-height:1.1}
+
+    .progress{
+      position:fixed;
+      top:0;left:0;height:3px;width:100%;
+      background:var(--coral);
+      transform-origin:0 50%;
+      transform:scaleX(0);
+      z-index:1000;
+    }
+
+    .grid-bg{
+      position:fixed;
+      inset:0;
+      background-image:
+        linear-gradient(var(--borda) 1px, transparent 1px),
+        linear-gradient(90deg, var(--borda) 1px, transparent 1px);
+      background-size:60px 60px;
+      opacity:.04;
+      pointer-events:none;
+      z-index:0;
+    }
+
+    section{
+      position:relative;
+      z-index:1;
+      min-height:100vh;
+      display:flex;
+      align-items:center;
+      padding:clamp(60px,10vh,120px) clamp(22px,6vw,80px);
+      border-bottom:1px solid var(--borda);
+    }
+    .inner{
+      width:100%;
+      max-width:980px;
+      margin:0 auto;
+    }
+
+    .eyebrow{
+      font-family:'IBM Plex Mono',monospace;
+      font-size:.72rem;
+      text-transform:uppercase;
+      letter-spacing:.18em;
+      color:var(--coral);
+      margin-bottom:20px;
+      display:inline-block;
+    }
+    .big{
+      font-family:'Playfair Display',serif;
+      font-size:clamp(2.4rem,7vw,5.2rem);
+      line-height:1.05;
+      margin-bottom:28px;
+    }
+    .big .muted{color:var(--muted)}
+    h2{
+      font-size:clamp(1.8rem,4.5vw,3rem);
+      margin-bottom:16px;
+    }
+    p{
+      font-size:clamp(1rem,1.8vw,1.15rem);
+      color:var(--corpo);
+      max-width:66ch;
+      line-height:1.65;
+    }
+    p strong{color:var(--texto);font-weight:600}
+
+    .reveal{opacity:0;transform:translateY(28px);transition:opacity .8s var(--ease),transform .8s var(--ease)}
+    .reveal.show{opacity:1;transform:none}
+    .delay-1{transition-delay:.15s}
+    .delay-2{transition-delay:.3s}
+    .delay-3{transition-delay:.45s}
+    .delay-4{transition-delay:.6s}
+    .delay-5{transition-delay:.75s}
+
+    .rule{
+      height:1px;
+      background:var(--borda);
+      margin:36px 0;
+      max-width:200px;
+    }
+
+    .qlist{
+      list-style:none;
+      display:grid;
+      gap:16px;
+      margin:32px 0;
+    }
+    .qlist li{
+      display:flex;
+      gap:18px;
+      align-items:baseline;
+      font-size:clamp(1.05rem,2vw,1.25rem);
+      color:var(--corpo);
+    }
+    .qlist li b{
+      font-family:'IBM Plex Mono',monospace;
+      color:var(--coral);
+      font-size:.9em;
+      flex:none;
+    }
+
+    .funnel{
+      display:grid;
+      gap:10px;
+      margin:36px 0;
+    }
+    .fn{
+      position:relative;
+      padding:18px 20px;
+      background:var(--fundo-card);
+      border:1px solid var(--borda);
+      border-radius:0;
+      overflow:hidden;
+    }
+    .fn-bar{
+      position:absolute;
+      inset:0;
+      width:var(--w);
+      background:rgba(224,122,95,.12);
+      transform:scaleX(0);
+      transform-origin:0 50%;
+      transition:transform 1.4s var(--ease);
+    }
+    .fn-bar.danger{background:rgba(168,74,57,.15)}
+    .fn.show .fn-bar{transform:scaleX(1)}
+    .fn-lbl{
+      position:relative;
+      display:flex;
+      gap:16px;
+      align-items:baseline;
+      flex-wrap:wrap;
+    }
+    .fn-lbl b{
+      font-family:'IBM Plex Mono',monospace;
+      font-size:clamp(1.3rem,3vw,1.9rem);
+      color:var(--coral);
+      flex:none;
+    }
+    .fn-lbl b.danger{color:var(--coral-escuro)}
+    .fn-lbl span{
+      font-size:clamp(.92rem,1.6vw,1.05rem);
+      color:var(--corpo);
+      max-width:50ch;
+    }
+
+    .tbl{
+      margin-top:32px;
+      border:1px solid var(--borda);
+      border-radius:0;
+      overflow:hidden;
+      background:var(--fundo-card);
+    }
+    .tr{
+      display:grid;
+      grid-template-columns:1.2fr 1fr 100px;
+      gap:18px;
+      align-items:center;
+      padding:18px 22px;
+      border-bottom:1px solid var(--borda);
+      column-gap: 24px;
+    }
+    .tr:last-child{border-bottom:0}
+    .tr.destaque{background:rgba(224,122,95,.05)}
+    .tk{font-size:.95rem;font-weight:500;line-height:1.4}
+    .tk em{
+      display:block;
+      font-style:normal;
+      font-size:.75rem;
+      color:var(--muted);
+      margin-top:4px;
+      font-weight:400;
+    }
+    .bar{
+      height:8px;
+      width: 100%;
+      background:#1E211C;
+      border-radius:0;
+      overflow:hidden;
+    }
+    .fill{
+      display:block;
+      height:100%;
+      width:var(--w);
+      transform:scaleX(0);
+      transform-origin:0 50%;
+      transition:transform 1.2s var(--ease) .3s;
+    }
+    .fill.coral{background:var(--coral)}
+    .fill.mostarda{background:var(--mostarda)}
+    .fill.musgo{background:var(--musgo)}
+    .tr.show .fill{transform:scaleX(1)}
+    .tv{
+      font-family:'IBM Plex Mono',monospace;
+      font-size:1.05rem;
+      text-align:right;
+      white-space:nowrap;
+    }
+    .tv small{
+      display:block;
+      font-size:.62rem;
+      color:var(--muted);
+      text-transform:uppercase;
+      letter-spacing:.05em;
+      font-family:'Work Sans',sans-serif;
+    }
+
+    .callout{
+      margin-top:32px;
+      padding:24px;
+      border-left:4px solid var(--coral);
+      background:var(--fundo-card);
+      border-radius:0 12px 12px 0;
+    }
+    .callout p{font-size:1.05rem;max-width:64ch}
+    .split{
+      display:grid;
+      grid-template-columns:1fr auto;
+      gap:32px;
+      align-items:center;
+      margin-top:28px;
+    }
+    .delta{
+      text-align:center;
+      border-left:1px solid var(--borda);
+      padding-left:32px;
+    }
+    .delta b{
+      display:block;
+      font-family:'IBM Plex Mono',monospace;
+      font-size:clamp(2.2rem,5vw,3.2rem);
+      color:var(--coral);
+      line-height:1;
+      letter-spacing:-.03em;
+    }
+    .delta span{
+      display:block;
+      font-size:.78rem;
+      color:var(--muted);
+      margin-top:8px;
+      line-height:1.4;
+    }
+
+    .bench{
+      margin-top:32px;
+      border:1px solid var(--borda);
+      border-radius:0;
+      overflow:hidden;
+      background:var(--fundo-card);
+    }
+    .bench-head{
+      display:flex;
+      justify-content:space-between;
+      gap:16px;
+      flex-wrap:wrap;
+      align-items:center;
+      padding:14px 20px;
+      border-bottom:1px solid var(--borda);
+      background:rgba(255,255,255,.02);
+      font-size:.75rem;
+      font-family:'IBM Plex Mono',monospace;
+      color:var(--muted);
+    }
+    .bench-head span:first-child{color:var(--texto)}
+    .bench-grid{
+      display:grid;
+      grid-template-columns:1fr 1fr;
+      gap:1px;
+      background:var(--borda);
+    }
+    .bench-cell{
+      background:var(--fundo-card);
+      padding:28px;
+    }
+    .bench-cell .p-t{
+      font-size:.7rem;
+      text-transform:uppercase;
+      letter-spacing:.1em;
+      color:var(--muted);
+      margin-bottom:12px;
+    }
+    .bench-cell .v{
+      font-family:'IBM Plex Mono',monospace;
+      font-size:clamp(2rem,4.5vw,2.8rem);
+      color:var(--coral-escuro);
+      letter-spacing:-.03em;
+      line-height:1;
+    }
+    .bench-cell p{
+      font-size:.9rem;
+      margin-top:14px;
+      line-height:1.6;
+    }
+    .bars{
+      list-style:none;
+      display:grid;
+      gap:14px;
+    }
+    .bars li{
+      display:grid;
+      gap:7px;
+      font-size:.88rem;
+      color:var(--corpo);
+    }
+    .bars .bl{
+      display:flex;
+      justify-content:space-between;
+      gap:12px;
+      align-items:baseline;
+    }
+    .bars .bl b{
+      font-family:'IBM Plex Mono',monospace;
+      font-size:.82rem;
+      color:var(--coral-escuro);
+      flex:none;
+    }
+    .bars i{
+      display:block;
+      height:6px;
+      background:#1E211C;
+      position:relative;
+      overflow:hidden;
+    }
+    .bars i::after{
+      content:"";
+      position:absolute;
+      inset:0;
+      width:var(--w);
+      background:var(--coral-escuro);
+      transform:scaleX(0);
+      transform-origin:0 50%;
+      transition:transform 1.2s var(--ease) .3s;
+    }
+    .bench.show .bars i::after{transform:scaleX(1)}
+    .proj{
+      display:grid;
+      grid-template-columns:repeat(4,1fr);
+      gap:1px;
+      background:var(--borda);
+      border-top:1px solid var(--borda);
+    }
+    .proj>div{
+      background:var(--fundo-card);
+      padding:18px;
+    }
+    .proj .l{
+      font-size:.66rem;
+      text-transform:uppercase;
+      letter-spacing:.08em;
+      color:var(--muted);
+    }
+    .proj .n{
+      font-family:'IBM Plex Mono',monospace;
+      font-size:1.2rem;
+      margin-top:6px;
+      letter-spacing:-.02em;
+    }
+    .proj .n.warn{color:var(--mostarda)}
+    .proj .n.ok{color:var(--musgo)}
+    .proj .n.danger{color:var(--coral-escuro)}
+
+    .demo{
+      display:grid;
+      grid-template-columns:repeat(auto-fit,minmax(170px,1fr));
+      gap:14px;
+      margin-top:36px;
+    }
+    .lot{
+      background:var(--fundo-card);
+      border:1px solid var(--borda);
+      border-radius:8px;
+      padding:18px;
+      transition:transform .25s ease,border-color .25s ease;
+    }
+    .lot:hover{
+      border-color:var(--coral);
+      transform:translateY(-4px);
+    }
+    .lot .sku{
+      font-family:'IBM Plex Mono',monospace;
+      font-size:.72rem;
+      color:var(--muted);
+    }
+    .lot .d{
+      font-size:1.6rem;
+      font-weight:700;
+      font-family:'IBM Plex Mono',monospace;
+      margin:8px 0 12px;
+    }
+    .tag{
+      display:inline-flex;
+      align-items:center;
+      gap:7px;
+      font-size:.68rem;
+      text-transform:uppercase;
+      letter-spacing:.06em;
+      font-weight:700;
+    }
+    .dot{width:8px;height:8px;border-radius:50%}
+    .t-danger{color:var(--coral-escuro)}
+    .t-warn{color:var(--mostarda)}
+    .t-soft{color:#C9A227}
+    .t-ok{color:var(--musgo)}
+    .t-info{color:var(--coral)}
+    .act{
+      margin-top:12px;
+      font-size:.75rem;
+      color:var(--muted);
+      font-family:'IBM Plex Mono',monospace;
+    }
+
+    .ladder{
+      display:grid;
+      gap:10px;
+      margin-top:30px;
+    }
+    .lad{
+      display:grid;
+      grid-template-columns:auto 1fr auto;
+      gap:16px;
+      align-items:center;
+      padding:16px 18px;
+      border:1px solid var(--borda);
+      border-radius:0;
+      background:var(--fundo-card);
+    }
+    .lad em{
+      font-style:normal;
+      font-family:'IBM Plex Mono',monospace;
+      font-size:.72rem;
+      width: 100px;
+      flex-shrink: 0;;
+      color:var(--muted);
+    }
+    
+    .lad span{font-size:.92rem;color:var(--corpo)}
+    
+    .lad b{
+      font-family:'IBM Plex Mono',monospace;
+      font-size:.78rem;
+      white-space:nowrap;
+    }
+    
+    .lad:nth-child(1) b{color:var(--musgo)}
+    .lad:nth-child(2) b{color:var(--coral)}
+    .lad:nth-child(3) b{color:var(--mostarda)}
+    .lad:nth-child(4) b{color:var(--coral-escuro)}
+
+    .gae{
+      margin-top:32px;
+      border:1px solid var(--borda);
+      border-radius:0;
+      overflow:hidden;
+      background:var(--fundo-card);
+    }
+    .gae-head{
+      display:flex;
+      justify-content:space-between;
+      gap:16px;
+      flex-wrap:wrap;
+      align-items:center;
+      padding:14px 20px;
+      border-bottom:1px solid var(--borda);
+      background:rgba(255,255,255,.02);
+      font-size:.75rem;
+      font-family:'IBM Plex Mono',monospace;
+    }
+    .gae-grid{
+      display:grid;
+      grid-template-columns:1fr 1fr;
+      gap:1px;
+      background:var(--borda);
+    }
+    .panel{
+      background:var(--fundo-card);
+      padding:24px;
+    }
+    .panel.wide{grid-column:1/-1}
+    .p-t{
+      font-size:.7rem;
+      text-transform:uppercase;
+      letter-spacing:.1em;
+      color:var(--muted);
+      margin-bottom:16px;
+    }
+    .p-n{
+      font-size:.88rem;
+      color:var(--corpo);
+      margin-top:16px;
+      line-height:1.6;
+      max-width:none;
+    }
+    .giro{
+      list-style:none;
+      display:grid;
+      gap:12px;
+    }
+    .giro li{
+      display:grid;
+      gap:6px;
+      font-size:.86rem;
+      color:var(--corpo);
+    }
+    .giro .gl{
+      display:flex;
+      justify-content:space-between;
+      gap:10px;
+      align-items:baseline;
+    }
+    .giro .gl b{
+      font-family:'IBM Plex Mono',monospace;
+      font-size:.8rem;
+      flex:none;
+    }
+    .giro i{
+      display:block;
+      height:7px;
+      background:#1E211C;
+      position:relative;
+      overflow:hidden;
+    }
+    .giro i::after{
+      content:"";
+      position:absolute;
+      inset:0;
+      width:var(--w);
+      background:var(--c);
+      transform:scaleX(0);
+      transform-origin:0 50%;
+      transition:transform 1s var(--ease) .3s;
+    }
+    .gae.show .giro i::after{transform:scaleX(1)}
+    .orig{
+      display:grid;
+      grid-template-columns:repeat(2,1fr);
+      gap:10px;
+    }
+    .orig div{
+      border:1px solid var(--borda);
+      border-radius:8px;
+      padding:14px;
+      background:rgba(255,255,255,.02);
+    }
+    .orig .q{
+      font-family:'IBM Plex Mono',monospace;
+      font-size:1.2rem;
+      font-weight:600;
+      letter-spacing:-.02em;
+    }
+    .orig .k{
+      font-size:.74rem;
+      color:var(--muted);
+      margin-top:4px;
+      line-height:1.35;
+    }
+    .mini-rows{
+      display:grid;
+      font-size:.84rem;
+    }
+    .mini-rows>div{
+      display:grid;
+      grid-template-columns:auto 1fr auto;
+      gap:14px;
+      align-items:center;
+      padding:12px 0;
+      border-bottom:1px solid var(--borda);
+    }
+    .mini-rows>div:last-child{border-bottom:0}
+    .mini-rows span:nth-child(2){color:var(--muted)}
+    .mini-rows span:last-child{
+      font-size:.72rem;
+      text-align:right;
+      font-family:'IBM Plex Mono',monospace;
+    }
+    .neg{
+      display:flex;
+      gap:14px;
+      align-items:flex-start;
+      padding:18px 20px;
+      border-top:1px solid var(--borda);
+      background:rgba(168,74,57,.08);
+    }
+    .neg .ex{
+      flex:none;
+      width:28px;
+      height:28px;
+      border-radius:50%;
+      border:1px solid var(--coral-escuro);
+      color:var(--coral-escuro);
+      display:grid;
+      place-items:center;
+      font-size:.9rem;
+      font-weight:700;
+    }
+    .neg p{
+      font-size:.88rem;
+      max-width:64ch;
+    }
+    .neg strong{color:var(--coral-escuro)}
+
+    .data-table{
+      width:100%;
+      max-width:720px;
+      border-collapse:collapse;
+      margin-top:28px;
+    }
+    .data-table tr{
+      border-bottom:1px solid var(--borda);
+      transition:background .25s ease;
+    }
+    .data-table tr:last-child{border-bottom:0}
+    .data-table td{
+      padding:16px 2px;
+      vertical-align:middle;
+    }
+    .data-table td:first-child{
+      width:28px;
+      padding-right:12px;
+    }
+    .data-table td:nth-child(2){
+      font-size:.98rem;
+      font-weight:500;
+      color:var(--texto);
+    }
+    .data-table td:last-child{
+      text-align:right;
+      font-size:.92rem;
+      color:var(--muted);
+    }
+    .data-table tr:hover .icon{stroke:var(--coral)}
+    .icon{
+      width:20px;
+      height:20px;
+      stroke:var(--muted);
+      stroke-width:1.6;
+      fill:none;
+      stroke-linecap:round;
+      stroke-linejoin:round;
+      flex:none;
+      transition:stroke .6s ease;
+    }
+    .yes{color:var(--musgo)!important;font-family:'IBM Plex Mono',monospace}
+    .no{color:var(--muted)!important;font-family:'IBM Plex Mono',monospace}
+    .zero{color:var(--coral)!important;font-family:'IBM Plex Mono',monospace}
+
+    .steps{
+      display:grid;
+      gap:18px;
+      margin-top:36px;
+      position:relative;
+    }
+    .steps::before{
+      content:"";
+      position:absolute;
+      left:15px;
+      top:8px;
+      bottom:20px;
+      width:1px;
+      background:var(--coral);
+      opacity:.4;
+      transform:scaleY(0);
+      transform-origin:top;
+      transition:transform 1.4s var(--ease) .3s;
+    }
+    .steps.show::before{transform:scaleY(1)}
+    .step{
+      display:flex;
+      gap:22px;
+      align-items:flex-start;
+    }
+    .step i{
+      flex:none;
+      width:32px;
+      height:32px;
+      border-radius:50%;
+      background:var(--fundo);
+      border:1px solid var(--coral);
+      color:var(--coral);
+      display:grid;
+      place-items:center;
+      font-family:'IBM Plex Mono',monospace;
+      font-size:.78rem;
+      font-style:normal;
+      z-index:1;
+    }
+    .step p{font-size:1.05rem}
+    .chips{
+      display:flex;
+      flex-wrap:wrap;
+      gap:10px;
+      margin-top:28px;
+    }
+    .chip{
+      font-family:'IBM Plex Mono',monospace;
+      font-size:.74rem;
+      color:var(--muted);
+      border:1px solid var(--borda);
+      border-radius:0;
+      padding:7px 15px;
+    }
+
+    .center{text-align:center}
+    .center p{margin-left:auto;margin-right:auto}
+    .links{
+      display:flex;
+      flex-wrap:wrap;
+      gap:12px;
+      justify-content:center;
+      margin-top:36px;
+    }
+    .links a{
+      position:relative;
+      overflow:hidden;
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      text-decoration:none;
+      color:var(--texto);
+      font-size:.9rem;
+      font-weight:600;
+      border:1px solid var(--borda);
+      border-radius:0;
+      padding:12px 24px;
+      transition:all .35s var(--ease);
+      z-index:1;
+    }
+    .links a::before{
+      content:"";
+      position:absolute;
+      top:0;
+      left:-100%;
+      width:60%;
+      height:100%;
+      background:linear-gradient(
+        90deg,
+        transparent,
+        rgba(224,122,95,.18),
+        transparent
+      );
+      transform:skewX(-20deg);
+      opacity:0;
+      transition:opacity .35s ease;
+      pointer-events:none;
+      z-index:-1;
+    }
+    .links a span{
+      position:relative;
+      z-index:1;
+    }
+    .links a:hover{
+      border-color:var(--coral);
+      color:var(--coral);
+      transform:translateY(-3px) scale(1.04);
+      box-shadow:0 8px 24px rgba(224,122,95,.18), 0 0 0 1px rgba(224,122,95,.25);
+    }
+    .links a:hover::before{
+      opacity:1;
+      animation:shimmer 2s ease-in-out infinite;
+    }
+    @keyframes shimmer{
+      0%,100%{left:-100%}
+      50%{left:160%}
+    }
+    .sig{
+      font-family:'IBM Plex Mono',monospace;
+      color:var(--coral);
+      font-size:.9rem;
+      margin-top:40px;
+    }
+    .sources{
+      margin-top:60px;
+      padding-top:24px;
+      border-top:1px solid var(--borda);
+      text-align:left;
+      max-width:780px;
+      margin-left:auto;
+      margin-right:auto;
+    }
+    .sources p{
+      font-size:.62rem;
+      line-height:1.65;
+      color:var(--muted);
+      margin-bottom:8px;
+      max-width:none;
+    }
+    .sources b{
+      color:var(--coral);
+      font-family:'IBM Plex Mono',monospace;
+      margin-right:6px;
+    }
+
+    .scroll-hint{
+      position:absolute;
+      bottom:36px;
+      left:50%;
+      transform:translateX(-50%);
+      color:var(--muted);
+      font-size:1.4rem;
+      animation:bob 2.4s ease-in-out infinite;
+      font-family:'IBM Plex Mono',monospace;
+    }
+    @keyframes bob{50%{transform:translateX(-50%) translateY(8px);opacity:.4}}
+
+    @media(max-width:760px){
+      .split,.bench-grid,.gae-grid{grid-template-columns:1fr}
+      .proj{grid-template-columns:1fr 1fr}
+      .delta{
+        border-left:none;
+        border-top:1px solid var(--borda);
+        padding:20px 0 0;
+        text-align:left;
+      }
+      .tr{grid-template-columns:1fr auto;gap:12px}
+      .tr .bar{grid-column:1/-1;order:3}
+      .lad{grid-template-columns:auto 1fr;gap:10px}
+      .lad b{grid-column:1/-1;text-align:left}
+      .mini-rows>div{grid-template-columns:1fr;gap:4px}
+      .data-table td:first-child{
+        width:24px;
+        padding-right:8px;
+      }
+      .data-table td{
+        padding:14px 2px;
+      }
+      .data-table td:nth-child(2){
+        font-size:.92rem;
+      }
+      .data-table td:last-child{
+        font-size:.85rem;
+      }
+    }
+    @media(prefers-reduced-motion:reduce){
+      *{animation:none!important;transition-duration:.01ms!important}
+      .reveal{opacity:1!important;transform:none!important}
+      .fn-bar,.fill,.bars i::after,.giro i::after{transform:scaleX(1)!important}
+    }
+
+    /* ============================================
+       MINI EMULAÇÃO DO CVL — VERSÃO COMPACTA
+       ============================================ */
+    .cvl-sim{
+      --cs-verde-escuro:#064e3b;
+      --cs-verde:#059669;
+      --cs-verde-claro:#ecfdf5;
+      --cs-amarelo:#d97706;
+      --cs-vermelho:#dc2626;
+      --cs-roxo:#7c3aed;
+      --cs-card:rgba(255,255,255,.96);
+      --cs-input:#f8fafc;
+      --cs-texto:#0f172a;
+      --cs-texto-sec:#475569;
+      --cs-borda:#d1fae5;
+      --cs-linha:#e2e8f0;
+      --cs-sombra:0 8px 22px rgba(0,0,0,.08);
+      font:11.5px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+      background:#f0fdf4;
+      border:1px solid var(--borda);
+      border-radius:10px;
+      overflow:hidden;
+      margin:24px auto 0;
+      box-shadow:0 10px 30px rgba(0,0,0,.3);
+      max-width:640px;
+      transform:scale(0.92);
+      transform-origin:top center;
+      min-height:auto;
+      position:relative;
+    }
+    .cvl-sim *{box-sizing:border-box;margin:0;padding:0}
+
+    .cvl-sim .cs-header{
+      background:linear-gradient(135deg,var(--cs-verde-escuro),var(--cs-verde));
+      color:#fff;
+      padding:9px 14px;
+      display:flex;
+      align-items:center;
+      gap:10px;
+      flex-wrap:wrap;
+    }
+    .cvl-sim .cs-header h1{font-size:13px;font-weight:700}
+    .cvl-sim .cs-sp{flex:1}
+    .cvl-sim .cs-header input,
+    .cvl-sim .cs-header select{
+      padding:4px 7px;border:0;border-radius:6px;font-size:10px;
+      background:var(--cs-input);color:var(--cs-texto)
+    }
+    .cvl-sim .cs-tema{
+      display:inline-flex;align-items:center;gap:5px;
+      background:rgba(255,255,255,.13);border:1.5px solid rgba(255,255,255,.35);
+      color:#fff;font:600 10px/1 inherit;padding:6px 10px;border-radius:999px;
+    }
+    .cvl-sim .cs-tema span{display:none}
+
+    .cvl-sim .cs-nav{
+      background:var(--cs-verde-escuro);
+      display:flex;flex-wrap:wrap;
+    }
+    .cvl-sim .cs-nav button{
+      background:none;border:0;color:#a7f3d0;padding:8px 12px;
+      cursor:pointer;font-size:10px;font-weight:600;
+      border-bottom:2px solid transparent;transition:.15s
+    }
+    .cvl-sim .cs-nav button.on{
+      color:#fff;border-bottom-color:var(--cs-amarelo);
+      background:rgba(0,0,0,.18)
+    }
+
+    .cvl-sim .cs-main{padding:11px;min-height:260px}
+    .cvl-sim .cs-pane{display:none;animation:cs-fade .22s ease}
+    .cvl-sim .cs-pane.on{display:block}
+    @keyframes cs-fade{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+
+    .cvl-sim .cs-card{
+      background:var(--cs-card);
+      border:1px solid var(--cs-borda);
+      border-radius:9px;padding:11px;margin-bottom:10px;
+      box-shadow:var(--cs-sombra);backdrop-filter:blur(6px)
+    }
+    .cvl-sim .cs-card h2{
+      font-size:12px;color:var(--cs-verde-escuro);
+      margin-bottom:8px;border-bottom:1px solid var(--cs-borda);
+      padding-bottom:6px;font-weight:700
+    }
+    .cvl-sim .cs-label{
+      display:block;font-size:9px;font-weight:700;
+      color:var(--cs-texto-sec);text-transform:uppercase;
+      letter-spacing:.4px;margin-bottom:3px
+    }
+    .cvl-sim .cs-input{
+      width:100%;padding:6px 8px;border:1px solid var(--cs-linha);
+      border-radius:6px;font-size:11px;font-family:inherit;
+      background:var(--cs-input);color:var(--cs-texto);
+      transition:.15s;outline:none;height:30px
+    }
+    .cvl-sim .cs-input:focus{
+      border-color:var(--cs-verde);
+      box-shadow:0 0 0 2px rgba(5,150,105,.18)
+    }
+    .cvl-sim .cs-grid{display:grid;gap:8px}
+    .cvl-sim .cs-g3{grid-template-columns:repeat(3,1fr)}
+    .cvl-sim .cs-row{display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;margin-top:9px}
+
+    .cvl-sim .cs-btn{
+      background:linear-gradient(135deg,var(--cs-verde-escuro),var(--cs-verde));
+      color:#fff;border:0;padding:7px 12px;border-radius:6px;
+      font-weight:600;font-size:11px;cursor:pointer;transition:.15s;
+      box-shadow:0 2px 8px rgba(5,150,105,.22)
+    }
+    .cvl-sim .cs-btn:hover{filter:brightness(1.09);transform:translateY(-1px)}
+    .cvl-sim .cs-btn.gh{background:#fff;color:var(--cs-verde-escuro);border:1.5px solid var(--cs-verde);box-shadow:none}
+    .cvl-sim .cs-msg{
+      padding:7px 10px;border-radius:6px;margin-bottom:9px;font-size:11px;display:none
+    }
+    .cvl-sim .cs-msg.ok{background:var(--cs-verde-claro);color:#065f46;border:1px solid var(--cs-borda)}
+    .cvl-sim .cs-msg.er{background:#fef2f2;color:#991b1b;border:1px solid #fecaca}
+
+    .cvl-sim .cs-kpis{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:10px}
+    .cvl-sim .cs-kpi{
+      background:var(--cs-card);border:1px solid var(--cs-borda);
+      border-left:3px solid var(--cs-verde);border-radius:8px;padding:8px;
+      box-shadow:var(--cs-sombra)
+    }
+    .cvl-sim .cs-kpi b{
+      display:block;font-size:8px;color:var(--cs-texto-sec);
+      text-transform:uppercase;letter-spacing:.4px;margin-bottom:3px
+    }
+    .cvl-sim .cs-kpi s{
+      display:block;font-size:17px;font-weight:800;text-decoration:none;
+      color:var(--cs-verde-escuro);line-height:1
+    }
+    .cvl-sim .cs-kpi i{font-size:9px;color:var(--cs-texto-sec);font-style:normal}
+    .cvl-sim .cs-kpi.k1{border-left-color:var(--cs-vermelho)}
+    .cvl-sim .cs-kpi.k1 s{color:var(--cs-vermelho)}
+    .cvl-sim .cs-kpi.k2{border-left-color:var(--cs-amarelo)}
+    .cvl-sim .cs-kpi.k2 s{color:var(--cs-amarelo)}
+    .cvl-sim .cs-kpi.k3{border-left-color:#ca8a04}
+    .cvl-sim .cs-kpi.k3 s{color:#a16207}
+
+    .cvl-sim .cs-wrap{
+      max-height:150px;overflow:auto;
+      border:1px solid var(--cs-borda);border-radius:7px
+    }
+    .cvl-sim table{width:100%;border-collapse:collapse;font-size:10.5px}
+    .cvl-sim th{
+      background:var(--cs-verde-escuro);color:#fff;padding:6px 5px;
+      text-align:left;font-size:8px;text-transform:uppercase;letter-spacing:.4px
+    }
+    .cvl-sim td{padding:5px 4px;border-bottom:1px solid var(--cs-linha);color:var(--cs-texto)}
+    .cvl-sim tbody tr:last-child td{border-bottom:0}
+    .cvl-sim .cs-tag{
+      display:inline-block;padding:1px 6px;border-radius:8px;
+      font-size:9px;font-weight:700;color:#fff;white-space:nowrap
+    }
+    .cvl-sim .cs-tag.t1{background:var(--cs-vermelho)}
+    .cvl-sim .cs-tag.t2{background:var(--cs-amarelo)}
+    .cvl-sim .cs-tag.t3{background:#ca8a04}
+    .cvl-sim .cs-tag.t5{background:var(--cs-verde)}
+    .cvl-sim .cs-fefo{
+      color:var(--cs-vermelho);font-weight:700;font-size:9px
+    }
+    .cvl-sim .cs-bloq{
+      color:#fff;background:var(--cs-vermelho);padding:1px 5px;border-radius:6px;
+      font-weight:800;font-size:8px;letter-spacing:.4px
+    }
+
+    .cvl-sim .cs-typing{
+      border-right:2px solid var(--cs-verde-escuro);
+      animation:cs-blink .8s step-end infinite
+    }
+    @keyframes cs-blink{50%{border-color:transparent}}
+
+    @media(max-width:760px){
+      .cvl-sim{max-width:100%}
+      .cvl-sim .cs-kpis{grid-template-columns:repeat(2,1fr)}
+      .cvl-sim .cs-g3{grid-template-columns:1fr}
+    }
+
+    /* ============================================
+       MINI EMULAÇÃO DO GAE
+       ============================================ */
+    .gae-sim{
+      --gs-verde-escuro:#064e3b;
+      --gs-verde:#059669;
+      --gs-verde-claro:#ecfdf5;
+      --gs-azul:#2563eb;
+      --gs-amarelo:#d97706;
+      --gs-vermelho:#dc2626;
+      --gs-roxo:#7c3aed;
+      --gs-cinza:#64748b;
+      --gs-card:rgba(255,255,255,.96);
+      --gs-input:#f8fafc;
+      --gs-texto:#0f172a;
+      --gs-texto-sec:#475569;
+      --gs-borda:#d1fae5;
+      --gs-linha:#e2e8f0;
+      --gs-sombra:0 8px 22px rgba(0,0,0,.08);
+      font:11.5px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+      background:linear-gradient(135deg,#ecfdf5,#f8fafc);
+      border:1px solid var(--borda);
+      border-radius:10px;
+      overflow:hidden;
+      margin:24px auto 0;
+      box-shadow:0 10px 30px rgba(0,0,0,.3);
+      max-width:640px;
+      transform:scale(0.92);
+      transform-origin:top center;
+      min-height:auto;
+      position:relative;
+    }
+    .gae-sim *{box-sizing:border-box;margin:0;padding:0}
+
+    .gae-sim .gs-header{
+      background:linear-gradient(135deg,var(--gs-verde-escuro),var(--gs-verde));
+      color:#fff;
+      padding:12px 14px;
+      border-radius:10px 10px 0 0;
+      position:relative;
+    }
+    .gae-sim .gs-header h1{font-size:13px;font-weight:700;margin-bottom:3px}
+    .gae-sim .gs-header p{font-size:10px;opacity:.9;line-height:1.4;max-width:480px}
+    .gae-sim .gs-tema{
+      position:absolute;right:10px;top:10px;
+      display:flex;align-items:center;gap:4px;
+      background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.25);
+      border-radius:999px;padding:4px 9px;color:#fff;font-size:9px;font-weight:bold;
+    }
+
+    .gae-sim .gs-painel{
+      background:var(--gs-card);
+      border:1px solid var(--gs-borda);
+      border-radius:10px;
+      padding:10px;
+      margin:10px;
+      box-shadow:var(--gs-sombra);
+    }
+    .gae-sim .gs-painel h2{
+      font-size:11px;color:var(--gs-verde-escuro);
+      margin-bottom:8px;border-bottom:1px solid var(--gs-borda);
+      padding-bottom:5px;font-weight:700
+    }
+    .gae-sim .gs-drop{
+      border:2px dashed var(--gs-verde);
+      border-radius:8px;padding:14px 10px;
+      text-align:center;background:var(--gs-verde-claro);
+      cursor:pointer;transition:.18s;
+    }
+    .gae-sim .gs-drop b{color:var(--gs-verde-escuro);font-size:11px;display:block;margin-bottom:3px}
+    .gae-sim .gs-drop span{font-size:9px;color:var(--gs-texto-sec)}
+    .gae-sim .gs-drop.hot{background:#d1fae5;border-color:var(--gs-verde-escuro)}
+    .gae-sim .gs-file{
+      display:inline-flex;align-items:center;gap:7px;
+      background:#fff;border:1px solid var(--gs-borda);
+      border-radius:7px;padding:6px 10px;margin-top:8px;
+      font-size:10px;color:var(--gs-texto-sec);
+      box-shadow:0 2px 6px rgba(0,0,0,.06)
+    }
+    .gae-sim .gs-file i{font-style:normal;font-size:12px}
+    .gae-sim .gs-bar{
+      height:5px;background:var(--gs-linha);border-radius:3px;
+      overflow:hidden;margin-top:8px
+    }
+    .gae-sim .gs-bar i{
+      display:block;height:100%;width:0;
+      background:linear-gradient(90deg,var(--gs-verde),var(--gs-verde-escuro));
+      border-radius:3px;transition:width .1s linear
+    }
+
+    .gae-sim .gs-dash{
+      display:grid;grid-template-columns:repeat(4,1fr);gap:8px;
+      padding:0 10px 10px;
+    }
+    .gae-sim .gs-card{
+      background:var(--gs-card);
+      border:1px solid var(--gs-borda);
+      border-radius:8px;padding:8px;
+      box-shadow:var(--gs-sombra);min-height:68px
+    }
+    .gae-sim .gs-card .gs-ico{font-size:14px;margin-bottom:5px}
+    .gae-sim .gs-card .gs-tit{
+      font-size:8.5px;color:var(--gs-texto-sec);line-height:1.2;margin-bottom:3px
+    }
+    .gae-sim .gs-card .gs-num{
+      font-size:17px;font-weight:800;color:var(--gs-verde-escuro);line-height:1
+    }
+    .gae-sim .gs-card.amarelo .gs-num{color:var(--gs-amarelo)}
+    .gae-sim .gs-card.vermelho .gs-num{color:var(--gs-vermelho)}
+    .gae-sim .gs-card.azul .gs-num{color:var(--gs-azul)}
+
+    .gae-sim .gs-sec{
+      background:var(--gs-card);
+      border:1px solid var(--gs-borda);
+      border-radius:10px;
+      margin:0 10px 10px;
+      padding:10px;
+      box-shadow:var(--gs-sombra);
+    }
+    .gae-sim .gs-sec h2{
+      font-size:11px;color:var(--gs-verde-escuro);
+      margin-bottom:6px;font-weight:700
+    }
+    .gae-sim .gs-wrap{
+      max-height:130px;overflow:auto;
+      border:1px solid var(--gs-linha);border-radius:6px
+    }
+    .gae-sim table{width:100%;border-collapse:collapse;font-size:9px}
+    .gae-sim th{
+      background:var(--gs-verde-escuro);color:#fff;padding:5px 4px;
+      text-align:left;font-size:7.5px;text-transform:uppercase;letter-spacing:.4px
+    }
+    .gae-sim td{padding:4px 3px;border-bottom:1px solid var(--gs-linha);color:var(--gs-texto-sec)}
+    .gae-sim tbody tr:last-child td{border-bottom:0}
+    .gae-sim .gs-tag{
+      display:inline-block;border-radius:999px;padding:1px 5px;
+      font-weight:bold;font-size:8px
+    }
+    .gae-sim .gs-tag.baixa{color:#1d4ed8;background:#dbeafe}
+    .gae-sim .gs-tag.moderada{color:#92400e;background:#fef3c7}
+    .gae-sim .gs-tag.alta{color:#991b1b;background:#fee2e2}
+    .gae-sim .gs-tag.sem{color:#334155;background:#e2e8f0}
+    .gae-sim .gs-tag.matriz{color:#166534;background:#dcfce7}
+    .gae-sim .gs-tag.filial{color:#1d4ed8;background:#dbeafe}
+    .gae-sim .gs-tag.compra{color:#92400e;background:#fef3c7}
+    .gae-sim .gs-tag.fora{color:#6b21a8;background:#f3e8ff}
+
+    .gae-sim .gs-btn{
+      background:var(--gs-verde);color:#fff;border:0;
+      padding:6px 10px;border-radius:7px;font-weight:600;font-size:10px;
+      cursor:pointer;transition:.15s;
+      box-shadow:0 2px 8px rgba(5,150,105,.22)
+    }
+    .gae-sim .gs-btn:hover{filter:brightness(1.09);transform:translateY(-1px)}
+    .gae-sim .gs-acoes{display:flex;gap:7px;margin-top:7px;flex-wrap:wrap}
+
+    .gae-sim .gs-typing{
+      border-right:2px solid var(--gs-verde-escuro);
+      animation:gs-blink .8s step-end infinite
+    }
+    @keyframes gs-blink{50%{border-color:transparent}}
+
+    .gae-sim .gs-hide{display:none!important}
+
+    @media(max-width:760px){
+      .gae-sim{max-width:100%}
+      .gae-sim .gs-dash{grid-template-columns:repeat(2,1fr)}
+    }
+
+    .video-caption{
+      display:block !important;
+      width:100% !important;
+      text-align:center !important;
+      margin-left:auto !important;
+      margin-right:auto !important;
+      font-size:.72rem !important;
+      color:var(--muted) !important;
+      margin-top:10px !important;
+      font-family:'IBM Plex Mono',monospace !important;
+    }
+
+    section .inner > .video-caption{
+      text-align:center !important;
+      display:block !important;
+      width:100% !important;
+    }
+
+    /* ============================================
+       FUNDO REATIVO — FLUXO / TOPOLOGIA
+       ============================================ */
+    #fluxo{
+      position:fixed;
+      inset:0;
+      width:100%;
+      height:100%;
+      z-index:0;
+      pointer-events:none;
+      opacity:.55;
+    }
+
+    /* ============================================
+       GRÁFICO EM LINHAS — PANORAMA DO VAREJO
+       ============================================ */
+    .chart-wrap{
+      margin-top:32px;
+      border:1px solid var(--borda);
+      background:var(--fundo-card);
+      padding:24px;
+    }
+    .chart-head{
+      display:flex;
+      justify-content:space-between;
+      gap:16px;
+      flex-wrap:wrap;
+      align-items:center;
+      margin-bottom:18px;
+      font-size:.75rem;
+      font-family:'IBM Plex Mono',monospace;
+      color:var(--muted);
+    }
+    .chart-head span:first-child{color:var(--texto)}
+    #chartVarejo{
+      width:100%;
+      min-height:420px;
+    }
+    .chart-legend{
+      display:flex;
+      flex-wrap:wrap;
+      gap:18px;
+      margin-top:18px;
+      font-size:.78rem;
+      color:var(--corpo);
+      padding:0;
+      list-style:none;
+    }
+    .chart-legend li{
+      display:flex;
+      align-items:center;
+      gap:8px;
+    }
+    .chart-legend i{
+      width:14px;
+      height:3px;
+      display:inline-block;
+    }
+    .chart-legend i.dashed{
+      height:2px;
+      background:repeating-linear-gradient(90deg,var(--terroso),var(--terroso) 4px,transparent 4px,transparent 8px);
+    }
+    .chart-note{
+      margin-top:18px;
+      font-size:.82rem;
+      color:var(--muted);
+      line-height:1.55;
+    }
+  </style>
+</head>
+<body>
+  <div class="progress" id="bar"></div>
+  <canvas id="fluxo" aria-hidden="true"></canvas>
+  <div class="grid-bg"></div>
+
+  <svg style="display:none" aria-hidden="true">
+    <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/></symbol>
+    <symbol id="i-barcode" viewBox="0 0 24 24"><path d="M4 5v14M8 5v14M12 5v14M16 5v14M20 5v14"/></symbol>
+    <symbol id="i-build" viewBox="0 0 24 24"><path d="M4 21V6l7-3v18M11 21h9V10l-9-3M15 11h1M15 15h1"/></symbol>
+    <symbol id="i-table" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 10h18M9 10v10"/></symbol>
+    <symbol id="i-lock" viewBox="0 0 24 24"><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 018 0v3"/></symbol>
+    <symbol id="i-branch" viewBox="0 0 24 24"><circle cx="7" cy="5" r="2.2"/><circle cx="7" cy="19" r="2.2"/><circle cx="17" cy="12" r="2.2"/><path d="M7 7.2v9.6M7 12h7.8"/></symbol>
+    <symbol id="i-user" viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.6"/><path d="M4.5 20a7.5 7.5 0 0115 0"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="M4 12.5l5 5L20 6.5"/></symbol>
+    <symbol id="i-filter" viewBox="0 0 24 24"><path d="M4 5h16l-6 7v6l-4 2v-8z"/></symbol>
+    <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6l1.4 1.4M17 17l1.4 1.4M18.4 5.6L17 7M7 17l-1.4 1.4"/></symbol>
+  </svg>
+
+  <main>
+
+    <!-- 1 · CAPA -->
+    <section>
+      <div class="inner">
+        <h1 class="big reveal">
+          Estoque não quebra<br>
+          de uma vez.<br>
+          <span class="muted">Quebra em silêncio.</span>
+        </h1>
+        <p class="reveal delay-1" style="margin-top:8px">E quando a conta chega, já é tarde demais.</p>
+        <div class="rule reveal delay-2"></div>
+        <p class="reveal delay-3" style="font-family:'IBM Plex Mono',monospace;font-size:.9rem;color:var(--coral)">Jean Henrique · Estudante de ADS (Análise e Desenvolvimento de Sistemas)</p>
+      </div>
+      <div class="scroll-hint" aria-hidden="true">↓</div>
+    </section>
+
+    <!-- 2 · ESPELHO -->
+    <section>
+      <div class="inner">
+        <span class="eyebrow reveal">Antes de qualquer coisa</span>
+        <h2 class="reveal delay-1">Isto não é proposta comercial.</h2>
+        <p class="reveal delay-2" style="margin-top:18px">
+          É o registro de duas ferramentas que eu construí porque o problema me incomodava durante o trabalho.
+        </p>
+        <div class="rule reveal delay-3"></div>
+        <p class="reveal delay-3" style="color:var(--muted)">Três perguntas que quase nenhuma operação responde na hora:</p>
+        <ol class="qlist">
+          <li class="reveal delay-4"><b>01</b> Quais lotes vencem nos próximos 30 dias?</li>
+          <li class="reveal delay-5"><b>02</b> Quanto tempo a equipe gasta conferindo validade na prateleira?</li>
+          <li class="reveal delay-5" style="transition-delay:.9s"><b>03</b> Quanto dinheiro está parado em produto que não sai?</li>
+        </ol>
+        <p class="reveal delay-5" style="transition-delay:1.05s">
+          <strong>Quando a resposta é “preciso levantar”, o problema não é falta de sistema. É falta de visibilidade.</strong>
+        </p>
+      </div>
+    </section>
+
+    <!-- 3 · VAZAMENTO -->
+    <section>
+      <div class="inner">
+        <span class="eyebrow reveal">O custo do invisível</span>
+        <h2 class="reveal delay-1">Onde o dinheiro vaza.</h2>
+        <p class="reveal delay-2" style="margin-top:16px">
+          O varejo alimentar brasileiro perdeu <strong class="mono">1,87%</strong> do que faturou por falhas de operação — cerca de <strong class="mono">R$ 14 bilhões</strong>.<sup class="mono" style="color:var(--coral);font-size:.6em">1</sup> A maior parte não é furto.
+        </p>
+
+        <div class="funnel">
+          <div class="fn reveal" data-w="100%">
+            <div class="fn-bar" style="--w:100%"></div>
+            <div class="fn-lbl">
+              <b class="mono" data-count="1.87" data-dec="2" data-suffix="%">0</b>
+              <span>do faturamento do setor se perde em falha de operação</span>
+            </div>
+          </div>
+          <div class="fn reveal delay-2" data-w="62%">
+            <div class="fn-bar" style="--w:62%"></div>
+            <div class="fn-lbl">
+              <b class="mono" data-count="62" data-suffix="%">0</b>
+              <span>disso é <strong>produto perdido</strong> — comprado, pago e não vendido</span>
+            </div>
+          </div>
+          <div class="fn reveal delay-3" data-w="41%">
+            <div class="fn-bar danger" style="--w:41%"></div>
+            <div class="fn-lbl">
+              <b class="mono danger" data-count="41" data-suffix="%">0</b>
+              <span>dessa perda é <strong>produto que venceu</strong><sup class="mono" style="color:var(--coral);font-size:.6em">2</sup></span>
+            </div>
+          </div>
+        </div>
+
+        <p class="reveal delay-4">
+          Produto vencido subiu de <span class="mono">37%</span> para <span class="mono">41%</span> da perda em um único ano.<sup class="mono" style="color:var(--coral);font-size:.6em">2</sup> É a causa que mais cresce — e a única que <strong>um calendário resolve.</strong>
+        </p>
+
+        <div class="tbl reveal delay-5">
+          <div class="tr">
+            <div class="tk">Como acontece no dia a dia.
+              <em>de cabeça, olho na prateleira, sem lista</em></div>
+            <div class="bar"><i class="fill" style="--w:100%;background:var(--cinza-quente)"></i></div>
+            <div class="tv" style="color:var(--muted)";font-size:.6em>sem<br>registro</div>
+          </div>
+          <div class="tr">
+            <div class="tk">Do jeito formal
+              <em>montando a planilha na mão, excel, csv, fórmulas </em></div>
+            <div class="bar"><i class="fill mostarda" style="--w:100%"></i></div>
+            <div class="tv"><span data-count="3" data-suffix="h">0</span><small>estimado<sup class="mono" style="color:var(--coral);font-size:.6em">3</sup></small></div>
+          </div>
+          <div class="tr destaque">
+            <div class="tk">Com o GAE
+              <em>1 minuto de máquina + conferência de quem entende da loja</em></div>
+            <div class="bar"><i class="fill musgo" style="--w:11.6%"></i></div>
+            <div class="tv" style="color:var(--musgo)"><span data-count="31" data-suffix=" min">0</span><small>medido<sup class="mono" style="color:var(--coral);font-size:.6em">4</sup></small></div>
+          </div>
+        </div>
+
+        <div class="split reveal delay-5" style="transition-delay:1.1s">
+          <div class="callout">
+            <p><strong>Cá entre nós:</strong> na prática quase ninguém monta planilha. A conferência acontece do jeito que dá — de cabeça, no corre do turno, por quem aprendeu no chão e não em curso. <strong>É exatamente por isso que a ferramenta não pode exigir que ninguém saiba Excel ou alguma ferramenta do tipo.</strong></p>
+          </div>
+          <div class="delta">
+            <b data-count="30" data-suffix=" min">0</b>
+            <span>são conferência de gente.<br>A máquina leva menos de 1.</span>
+          </div>
+        </div>
+
+        <p class="big reveal" style="margin-top:40px;font-size:clamp(1.6rem,4vw,2.4rem);transition-delay:1,1s">
+          Produto vencido não vira desconto.<br>
+          <span style="color:var(--coral-escuro)">Vira lixo com nota fiscal paga.</span>
+        </p>
+      </div>
+    </section>
+
+    <!-- 4 · CVL -->
+    <section>
+      <div class="inner">
+        <span class="eyebrow reveal">Ferramenta 01</span>
+        <h2 class="reveal delay-1">CVL · Controle de Validade por Lote</h2>
+        <p class="reveal delay-2" style="margin-top:16px">
+          Antes de explicar o que ele faz, o tamanho do problema que ele ataca — <strong>com dados públicos do setor</strong>, não com estimativa minha.
+        </p>
+
+        <div class="bench reveal delay-3">
+          <div class="bench-head">
+            <span>o que o setor perde por ano</span>
+            <span>ABRAS · Abrappe/KPMG</span>
+          </div>
+          <div class="bench-grid">
+            <div class="bench-cell">
+              <p class="p-t">Perda nos supermercados brasileiros</p>
+              <div class="v mono">R$ <span data-count="7.6" data-dec="1">0</span> bi</div>
+              <p>É o que o setor joga fora por ano — <strong>1,79% de tudo que fatura</strong>.<sup class="mono" style="color:var(--coral);font-size:.6em">5</sup> A causa nº 1 não é furto. É produto que passou da data.</p>
+            </div>
+            <div class="bench-cell">
+              <p class="p-t">Motivo da perda</p>
+              <ul class="bars">
+                <li>
+                  <div class="bl"><span>Venceu — frios, carnes, hortifruti</span><b class="mono">37,4%</b></div>
+                  <i style="--w:37.4%"></i>
+                </li>
+                <li>
+                  <div class="bl"><span>Venceu — mercearia e limpeza</span><b class="mono">42,5%</b></div>
+                  <i style="--w:42.5%"></i>
+                </li>
+                <li>
+                  <div class="bl"><span>Produto danificado ou impróprio</span><b class="mono">29,1%</b></div>
+                  <i style="--w:29.1%"></i>
+                </li>
+              </ul>
+              <p style="font-size:.8rem;color:var(--muted);margin-top:14px">Abrappe/KPMG 2024: o prejuízo do varejo subiu até <strong>10%</strong> e pode chegar a <strong>R$ 34,9 bi</strong>.<sup class="mono" style="color:var(--coral);font-size:.6em">6</sup></p>
+            </div>
+          </div>
+          <div class="proj">
+            <div class="reveal delay-4"><div class="l">Loja de referência</div><div class="n">R$ 1,2 mi / mês</div></div>
+            <div class="reveal delay-4" style="transition-delay:.5s"><div class="l">Perda estimada (1,79%)</div><div class="n warn">≈ R$ 21,4 mil / mês</div></div>
+            <div class="reveal delay-4" style="transition-delay:.6s"><div class="l">Parte que venceu (≈40%)</div><div class="n danger">≈ R$ 8,5 mil / mês</div></div>
+            <div class="reveal delay-4" style="transition-delay:.7s"><div class="l">O que o CVL disputa</div><div class="n ok">essa última coluna</div></div>
+          </div>
+        </div>
+
+        <p class="reveal delay-5" style="font-size:.78rem;color:var(--muted);margin-top:12px">
+          Conta feita aplicando os índices públicos a um faturamento de referência. Não é resultado auditado de nenhuma empresa.
+        </p>
+
+        <div class="callout reveal delay-5" style="transition-delay:1s">
+          <p><strong>Traduzindo:</strong> uma loja que fatura R$ 1,2 milhão por mês joga fora cerca de <strong class="mono">R$ 8,5 mil</strong> só em produto que estava lá, comprado, pago, parado — e venceu na prateleira. Ninguém roubou. <strong>Só ninguém olhou a tempo.</strong></p>
+        </div>
+
+        <h2 class="reveal" style="margin-top:48px;font-size:clamp(1.4rem,3vw,2rem);transition-delay:1.1s">Como o CVL protege esse dinheiro</h2>
+        <p class="reveal delay-4" style="transition-delay:1.2s">
+          Regra única: <strong>o que vence primeiro sai primeiro</strong>. E cada prazo recebe a ação que custa menos.
+        </p>
+
+        <table class="data-table reveal delay-4" style="transition-delay:1.25s">
+          <tbody>
+            <tr>
+              <td><svg class="icon"><use href="#i-barcode"/></svg></td>
+              <td>Controla lote por lote</td>
+              <td>a data é do lote, não do produto em geral</td>
+            </tr>
+            <tr>
+              <td><svg class="icon"><use href="#i-clock"/></svg></td>
+              <td>Semáforo de risco</td>
+              <td>vencido · até 30 dias · até 90 dias · tranquilo</td>
+            </tr>
+            <tr>
+              <td><svg class="icon"><use href="#i-branch"/></svg></td>
+              <td>Diz o que fazer</td>
+              <td>não só o que aconteceu</td>
+            </tr>
+            <tr>
+              <td><svg class="icon"><use href="#i-build"/></svg></td>
+              <td>Matriz e lojas juntas</td>
+              <td>na mesma tela — sobra numa, falta na outra</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <!-- ANIMAÇÃO CVL -->
+        <div class="cvl-sim reveal delay-4" id="cvlSim" style="transition-delay:1.5s">
+          <div class="cs-header">
+            <h1>CVL · Controle de Validade por Lote</h1>
+            <div class="cs-sp"></div>
+            <button class="cs-tema" type="button">🌙 <span>Mudar para tema escuro</span></button>
+            <div><label class="cs-label" style="color:#a7f3d0">Referência</label><input type="date" value="2026-09-05" readonly></div>
+            <div><label class="cs-label" style="color:#a7f3d0">Filial</label><select><option>Matriz</option></select></div>
+          </div>
+
+          <nav class="cs-nav">
+            <button class="on" data-tab="tab1">1 · Entrada</button>
+            <button data-tab="tab2">2 · Dashboard &amp; Busca</button>
+            <button data-tab="tab3">3 · Base Mestra</button>
+            <button data-tab="tab4">4 · Impressão</button>
+          </nav>
+
+          <main class="cs-main">
+            <div class="cs-pane on" id="tab1">
+              <div class="cs-card">
+                <h2>Lançar lote</h2>
+                <div class="cs-msg" id="csMsg1"></div>
+                <div class="cs-grid cs-g3">
+                  <div><label class="cs-label">SKU ou descrição</label><input class="cs-input" id="csSku" readonly></div>
+                  <div><label class="cs-label">Lote</label><input class="cs-input" id="csLote" readonly></div>
+                  <div><label class="cs-label">Validade</label><input class="cs-input" id="csVal" type="date" readonly></div>
+                  <div><label class="cs-label">Quantidade</label><input class="cs-input" id="csQtd" readonly></div>
+                  <div><label class="cs-label">Filial</label><select class="cs-input"><option>Matriz</option></select></div>
+                </div>
+                <div class="cs-row">
+                  <button class="cs-btn" id="csBtnAdd">Adicionar lote</button>
+                  <button class="cs-btn gh">Limpar campos</button>
+                </div>
+              </div>
+            </div>
+
+            <div class="cs-pane" id="tab2">
+              <div class="cs-kpis">
+                <div class="cs-kpi k1"><b>Vencido</b><s id="csKpi1">0</s><i>0 un</i></div>
+                <div class="cs-kpi k2"><b>Crítico ≤30d</b><s id="csKpi2">0</s><i>0 un</i></div>
+                <div class="cs-kpi k3"><b>Alerta ≤90d</b><s id="csKpi3">0</s><i>0 un</i></div>
+                <div class="cs-kpi"><b>Prazo OK</b><s id="csKpi5">0</s><i>0 un</i></div>
+                <div class="cs-kpi"><b>Em risco</b><s id="csKpiR">0</s><i>0%</i></div>
+              </div>
+              <div class="cs-card">
+                <h2>Prioridade FEFO</h2>
+                <div class="cs-wrap">
+                  <table id="csTable">
+                    <thead>
+                      <tr>
+                        <th>#</th><th>SKU</th><th>Descrição</th><th>Lote</th>
+                        <th>Validade</th><th>Dias</th><th>Qtd</th><th>Status</th><th>Ação</th>
+                      </tr>
+                    </thead>
+                    <tbody id="csTbody"></tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </main>
+        </div>
+        <p class="video-caption reveal delay-5" style="transition-delay:1.6s">
+          CVL em uso: lançamento de lote, semáforo de validade e ação sugerida.
+        </p>
+
+        <span class="eyebrow reveal" style="margin-top:40px;transition-delay:1.65s">A ordem das ações — do prejuízo menor para o maior</span>
+        <div class="ladder">
+          <div class="lad reveal delay-4" style="transition-delay:1.7s"><em>60 dias ou mais</em><span>Devolver ao fornecedor, enquanto o acordo ainda permite</span><b>perda zero</b></div>
+          <div class="lad reveal delay-4" style="transition-delay:1.77s"><em>30 a 60 dias</em><span>Mandar para a loja que vende esse produto</span><b>preço cheio</b></div>
+          <div class="lad reveal delay-4" style="transition-delay:1.84s"><em>10 a 30 dias</em><span>Promoção decidida com calma — não no desespero</span><b>ganha menos</b></div>
+          <div class="lad reveal delay-4" style="transition-delay:1.91s"><em>venceu</em><span>Baixa. Aqui nada mais recupera o dinheiro</span><b>perda total</b></div>
+        </div>
+
+        <div class="callout reveal delay-4" style="margin-top:40px;transition-delay:1.7s">
+          <strong>O ganho do CVL não é a promoção.</strong> É deixar de precisar dela. Ele não decide nada sozinho: entrega a lista com data e lote para quem confere no chão da loja — e devolve os <strong>40 dias</strong> em que ainda existia escolha.
+        </div>
+      </div>
+    </section>
+
+    <!-- 5 · GAE -->
+    <section>
+      <div class="inner">
+        <span class="eyebrow reveal">Ferramenta 02</span>
+        <h2 class="reveal delay-1">GAE · Gestão e Análise de Estoque</h2>
+        <p class="reveal delay-2" style="margin-top:16px">
+          O estoque parado é dinheiro emprestado sem juros. Abaixo a um grafico que demostra exatamente essa perda.O GAE mostra onde ele está parado, há quanto tempo e o que fazer.
+        </p>
+
+        <!-- GRÁFICO EM LINHAS — SUBSTITUI A TABELA ANTIGA -->
+        <div class="chart-wrap reveal delay-3">
+         <div class="chart-head">
+           <span>lucro estimado e perdas por trimestre (R$ bi)</span>
+           <span>ABRAPPE/Protiviti · 2025</span>
+         </div>
+         <div id="chartVarejo"></div>
+         <ul class="chart-legend">
+            <li><i style="background:#D4A017"></i> Lucro líquido estimado</li>
+            <li><i style="background:#E07A5F"></i> Perdas totais</li>
+            <li><i class="dashed" style="border-color:#8C5A3C"></i> Perdas por validade</li>
+         </ul>
+         <p class="chart-note">
+           Projeção trimestral a partir dos dados anuais publicados: perdas de R$ 42,1 bilhões e índice médio de 1,65%.
+         </p>
+       </div>
+
+       <div class="rows">
+         <p class="reveal delay-4" style="margin-top:24px">
+           <strong>O GAE traduz estoque em resultado.</strong> Não substitui o ERP — mostra o que ele não consegue contar.
+         </p>
+       </div>
+
+        <div class="gae reveal delay-3">
+          <div class="gae-head">
+            <span>o que a planilha entrega em menos de 1 minuto</span>
+            <span>Medição interna · GAE</span>
+          </div>
+          <div class="gae-grid">
+            <div class="panel">
+              <p class="p-t">Tempo de processamento</p>
+              <div class="orig">
+                <div><div class="q mono">3h</div><div class="k">Planilha manual<br>(quando alguém faz)</div></div>
+                <div><div class="q mono" style="color:var(--musgo)">1 min</div><div class="k">GAE<br>(máquina)</div></div>
+              </div>
+              <p class="p-n">A diferença não é só velocidade. É que <strong>agora alguém de fato olha</strong>.</p>
+            </div>
+            <div class="panel">
+              <p class="p-t">Giro por filial</p>
+              <ul class="giro">
+                <li><div class="gl"><span>Matriz</span><b class="mono">38 dias</b></div><i style="--w:38%;--c:var(--musgo)"></i></li>
+                <li><div class="gl"><span>Filial 2</span><b class="mono">67 dias</b></div><i style="--w:67%;--c:var(--mostarda)"></i></li>
+                <li><div class="gl"><span>Filial 3</span><b class="mono">94 dias</b></div><i style="--w:94%;--c:var(--coral-escuro)"></i></li>
+              </ul>
+              <p class="p-n">Onde o giro é lento, o dinheiro dorme. O GAE aponta exatamente qual filial e qual SKU.</p>
+            </div>
+            <div class="panel wide">
+              <p class="p-t">Exemplo de saída</p>
+              <div class="mini-rows">
+                <div><span>789100 · Arroz Integral 1kg</span><span>Matriz · estoque 124 un</span><span class="mono" style="color:var(--mostarda)">sem venda 90 dias</span></div>
+                <div><span>789101 · Feijão Carioca 1kg</span><span>Filial 2 · estoque 8 un</span><span class="mono" style="color:var(--musgo)">transferir da Matriz</span></div>
+                <div><span>789102 · Óleo de Soja 900ml</span><span>Filial 3 · estoque 312 un</span><span class="mono" style="color:var(--coral-escuro)">reduzir pedido</span></div>
+              </div>
+            </div>
+          </div>
+          <div class="neg">
+            <div class="ex">!</div>
+            <p><strong>O alerta que nenhum relatório padrão dá:</strong> estoque negativo. O GAE sinaliza em vermelho quando o sistema mostra menos unidades do que deveria — geralmente sinal de venda sem nota, furto ou erro de lançamento.</p>
+          </div>
+        </div>
+
+        <table class="data-table reveal delay-4">
+          <tbody>
+            <tr>
+              <td><svg class="icon"><use href="#i-table"/></svg></td>
+              <td>Aceita a planilha como ela vem</td>
+              <td>colunas fora de ordem, nome trocado</td>
+            </tr>
+            <tr>
+              <td><svg class="icon"><use href="#i-filter"/></svg></td>
+              <td>Filtra e ordena por qualquer coluna</td>
+              <td>por loja, por situação, por valor parado</td>
+            </tr>
+            <tr>
+              <td><svg class="icon"><use href="#i-user"/></svg></td>
+              <td>Entrega para quem conhece a loja</td>
+              <td>a decisão continua com a pessoa</td>
+            </tr>
+            <tr>
+              <td><svg class="icon"><use href="#i-check"/></svg></td>
+              <td>Exporta em Excel</td>
+              <td>pronto para imprimir ou levar para reunião</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <!-- ANIMAÇÃO GAE -->
+        <div class="gae-sim reveal delay-4" id="gaeSim" style="transition-delay:1.5s">
+          <div class="gs-header">
+            <h1>GAE — Gestão e Análise de Estoque</h1>
+            <p>Entra a planilha crua que a loja já tem. Sai uma lista pronta para decidir.</p>
+            <div class="gs-tema">🌙 <span>Mudar para tema escuro</span></div>
+          </div>
+
+          <div class="gs-painel" id="gsUpload">
+            <h2>Importar base (XLSX / CSV)</h2>
+            <div class="gs-drop" id="gsDrop">
+              <b>Clique aqui ou arraste o arquivo</b>
+              <span>SKU / CÓDIGO · DESCRIÇÃO · MARCA · Estoque F1 · F2 · F3</span>
+            </div>
+            <div class="gs-file gs-hide" id="gsFile">
+              <i>📄</i>
+              <span id="gsFileName">planilha_winthor.xlsx</span>
+            </div>
+            <div class="gs-bar gs-hide" id="gsBar"><i></i></div>
+          </div>
+
+          <div class="gs-dash gs-hide" id="gsDash">
+            <div class="gs-card vermelho">
+              <div class="gs-ico">⚠️</div>
+              <div class="gs-tit">Produtos em risco</div>
+              <div class="gs-num" data-gs-count="12">0</div>
+            </div>
+            <div class="gs-card amarelo">
+              <div class="gs-ico">📉</div>
+              <div class="gs-tit">Sem venda ≥ 60 dias</div>
+              <div class="gs-num" data-gs-count="28">0</div>
+            </div>
+            <div class="gs-card azul">
+              <div class="gs-ico">🏪</div>
+              <div class="gs-tit">Sobra em filial</div>
+              <div class="gs-num" data-gs-count="7">0</div>
+            </div>
+            <div class="gs-card">
+              <div class="gs-ico">✅</div>
+              <div class="gs-tit">Ações sugeridas</div>
+              <div class="gs-num" data-gs-count="47">0</div>
+            </div>
+          </div>
+
+          <div class="gs-sec gs-hide" id="gsSec">
+            <h2>Lista de ações gerada</h2>
+            <div class="gs-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>SKU</th><th>Descrição</th><th>Filial</th>
+                    <th>Estoque</th><th>Situação</th><th>Ação</th>
+                  </tr>
+                </thead>
+                <tbody id="gsTbody"></tbody>
+              </table>
+            </div>
+            <div class="gs-acoes">
+              <button class="gs-btn" id="gsBtnExp">Exportar Excel</button>
+              <button class="gs-btn" style="background:#e2e8f0;color:#334155">Filtrar</button>
+            </div>
+          </div>
+        </div>
+        <p class="video-caption reveal delay-5" style="transition-delay:1.6s">
+          GAE em uso: planilha carregada, filtros aplicados e lista de ações gerada.
+        </p>
+
+        <div class="callout reveal delay-4" style="margin-top:40px;transition-delay:1.7s">
+          <p><strong>Resultado prático:</strong> em vez de três horas para montar uma planilha que ninguém confia, a loja tem uma lista em 60 segundos. O gestor gasta o tempo dele <strong>decidindo</strong>, não procurando.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- 6 · OBJEÇÃO -->
+    <section>
+      <div class="inner">
+        <span class="eyebrow reveal">A pergunta inevitável</span>
+        <h2 class="reveal delay-1">"E os dados da empresa?"</h2>
+        <p class="reveal delay-2" style="margin-top:22px;font-size:clamp(1.2rem,2.5vw,1.5rem);color:var(--texto)">
+          <strong>Não saem do computador.</strong> As duas abrem como uma página comum. Nenhuma planilha é enviada para lugar nenhum.
+        </p>
+        <table class="data-table reveal delay-3">
+          <tbody>
+            <tr>
+              <td><svg class="icon"><use href="#i-lock"/></svg></td>
+              <td>Mensalidade</td>
+              <td class="zero">R$ 0</td>
+            </tr>
+            <tr>
+              <td><svg class="icon"><use href="#i-lock"/></svg></td>
+              <td>Servidor</td>
+              <td class="zero">R$ 0</td>
+            </tr>
+            <tr>
+              <td><svg class="icon"><use href="#i-lock"/></svg></td>
+              <td>Instalação</td>
+              <td class="no">nenhuma</td>
+            </tr>
+            <tr>
+              <td><svg class="icon"><use href="#i-lock"/></svg></td>
+              <td>Depende do pessoal de TI</td>
+              <td class="no">não</td>
+            </tr>
+            <tr>
+              <td><svg class="icon"><use href="#i-lock"/></svg></td>
+              <td>Precisa saber Excel</td>
+              <td class="no">não</td>
+            </tr>
+            <tr>
+              <td><svg class="icon"><use href="#i-lock"/></svg></td>
+              <td>Funciona sem internet</td>
+              <td class="yes">sim</td>
+            </tr>
+            <tr>
+              <td><svg class="icon"><use href="#i-lock"/></svg></td>
+              <td>Dado sai da empresa</td>
+              <td class="no">nunca</td>
+            </tr>
+          </tbody>
+        </table>
+        <p class="reveal delay-4" style="transition-delay:.6s">
+          <strong>Não substitui o sistema da empresa.</strong> Cobre o espaço entre o que o sistema mostra e o que a operação precisa decidir hoje.
+        </p>
+      </div>
+    </section>
+
+    <!-- 7 · MÉTODO -->
+    <section>
+      <div class="inner">
+        <span class="eyebrow reveal">Como eu trabalho</span>
+        <h2 class="reveal delay-1">O caminho é sempre o mesmo.</h2>
+        <div class="steps reveal delay-2">
+          <div class="step reveal"><i>01</i><p>Achar a decisão que está sendo tomada no escuro.</p></div>
+          <div class="step reveal" style="transition-delay:.15s"><i>02</i><p>Escrever a regra em palavras simples, do jeito que a loja funciona.</p></div>
+          <div class="step reveal" style="transition-delay:.3s"><i>03</i><p>Desenhar para <strong>quem vai usar de verdade</strong>, não para quem gosta de planilha.</p></div>
+          <div class="step reveal" style="transition-delay:.45s"><i>04</i><p>Entregar a coisa mais simples que resolva.</p></div>
+          <div class="step reveal" style="transition-delay:.6s"><i>05</i><p>Medir se o número mudou.</p></div>
+        </div>
+        <div class="chips">
+          <span class="chip reveal delay-3" style="transition-delay:.1s">HTML/JS</span>
+          <span class="chip reveal delay-3" style="transition-delay:.1s">Python</span>
+          <span class="chip reveal delay-3" style="transition-delay:.2s">SQL</span>
+          <span class="chip reveal delay-3" style="transition-delay:.2s">Excel</span>
+        </div>
+        <p class="reveal delay-4" style="margin-top:28px;transition-delay:.8s">
+          <strong>A ferramenta é consequência. O trabalho é entender a regra.</strong>
+        </p>
+      </div>
+    </section>
+
+    <!-- 8 · FECHO -->
+    <section>
+      <div class="inner center">
+        <p class="reveal" style="font-size:clamp(1.2rem,3vw,1.7rem);line-height:1.45;color:var(--texto);transition-duration:1.2s">
+          As duas ferramentas foram construídas em tempo livre, resolvendo um problema que eu enxergava de dentro da operação.
+        </p>
+        <p class="reveal delay-2" style="margin-top:24px;color:var(--muted);transition-delay:.6s">
+          Estão aqui, funcionando, para quem quiser testar.
+        </p>
+        <div class="links">
+          <a class="reveal delay-3" href="https://jhpng.github.io/CVL/" style="transition-delay:.05s">CVL</a>
+          <a class="reveal delay-3" href="https://jhpng.github.io/GAE/" style="transition-delay:.05s">GAE</a>
+          <a class="reveal delay-3" href="https://github.com/JHpng" target="_blank" rel="noopener noreferrer" style="transition-delay:.05s">GitHub</a>
+          <a class="reveal delay-3 contact-btn" href="mailto:jean.henrique.as@gmail.com" style="transition-delay:.05s">Contato</a>
+        </div>
+        <p class="sig reveal delay-4" style="transition-delay:1.5s">Jean Henrique · Estudante de ADS (Análise e Desenvolvimento de Sistemas)</p>
+
+        <div class="sources reveal delay-5" style="transition-delay:1.8s">
+          <p><b>1</b> ABRAS — Pesquisa de Eficiência Operacional (24ª ed.). Perda de 1,87% sobre o faturamento bruto do varejo alimentar brasileiro, equivalente a cerca de R$ 14 bilhões. abras.com.br</p>
+          <p><b>2</b> ABRAS — Pesquisa de Eficiência Operacional (25ª ed., 2025). Produto perdido representa 62% da perda total; dentro dela, prazo de validade passou de 37% para 41%. abras.com.br</p>
+          <p><b>3</b> Tempo de referência para consolidar planilhas de várias lojas manualmente. Não corresponde à prática observada — ver texto.</p>
+          <p><b>4</b> Medição interna do GAE: 1 minuto de processamento + 30 minutos de conferência humana sobre a lista gerada.</p>
+          <p><b>5</b> ABRAS, 25ª Pesquisa de Eficiência Operacional. Perda média de 1,79% sobre o faturamento bruto do varejo alimentar.</p>
+          <p><b>6</b> Abrappe/KPMG, 2024. Estudo sobre perdas no varejo brasileiro, com projeção de prejuízo de até 10% e R$ 34,9 bilhões.</p>
+          <p><b>7</b> ABRAPPE/Protiviti, 2025. 9ª Pesquisa Abrappe de Perdas no Varejo Brasileiro. Faturamento de R$ 2,55 trilhões, perdas de R$ 42,1 bilhões e índice médio de 1,65%. abrappe.com.br</p>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <script>
+  /* ---------- scroll progress + reveal ---------- */
+  const bar=document.getElementById('bar');
+  window.addEventListener('scroll',()=>{
+    const h=document.documentElement;
+    const scrolled=h.scrollTop/(h.scrollHeight-h.clientHeight);
+    bar.style.transform='scaleX('+scrolled+')';
+  },{passive:true});
+
+  const io=new IntersectionObserver((entries)=>{
+    entries.forEach(e=>{
+      if(e.isIntersecting){
+        e.target.classList.add('show');
+        if(e.target.classList.contains('bench')) e.target.classList.add('show');
+        if(e.target.classList.contains('gae')) e.target.classList.add('show');
+      }
+    });
+  },{threshold:.18});
+
+  document.querySelectorAll('.reveal, .fn, .tr, .bench, .gae').forEach(el=>io.observe(el));
+
+  /* ---------- contadores animados ---------- */
+  document.querySelectorAll('[data-count]').forEach(el=>{
+    const final=parseFloat(el.dataset.count)||0;
+    const dec=parseInt(el.dataset.dec)||0;
+    const suffix=el.dataset.suffix||'';
+    const dur=1500;
+    const ioCount=new IntersectionObserver(entries=>{
+      entries.forEach(e=>{
+        if(e.isIntersecting){
+          const start=performance.now();
+          const step=now=>{
+            const p=Math.min((now-start)/dur,1);
+            const ease=1-Math.pow(1-p,3);
+            const val=final*ease;
+            el.textContent=(dec?val.toFixed(dec):Math.round(val).toLocaleString('pt-BR'))+suffix;
+            if(p<1) requestAnimationFrame(step);
+          };
+          requestAnimationFrame(step);
+          ioCount.unobserve(el);
+        }
+      });
+    },{threshold:.5});
+    ioCount.observe(el);
+  });
+
+  /* ============================================
+     ANIMAÇÃO DA MINI-EMULAÇÃO CVL
+     ============================================ */
+  (function(){
+    const sim=document.getElementById('cvlSim');
+    if(!sim)return;
+    const $=id=>sim.querySelector('#'+id);
+    const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+    const msg1=$('csMsg1');
+    const tbody=$('csTbody');
+    let running=false;
+
+    function type(el,text,speed=70){
+      return new Promise(resolve=>{
+        el.value='';
+        el.classList.add('cs-typing');
+        let i=0;
+        const tick=()=>{
+          if(i>=text.length){el.classList.remove('cs-typing');resolve();return;}
+          el.value+=text[i];i++;
+          setTimeout(tick,speed);
+        };
+        tick();
+      });
+    }
+
+    function setTab(n){
+      sim.querySelectorAll('.cs-nav button').forEach((b,i)=>b.classList.toggle('on',i===n-1));
+      sim.querySelectorAll('.cs-pane').forEach((p,i)=>p.classList.toggle('on',i===n-1));
+    }
+
+    function showMsg(text,ok=true){
+      msg1.textContent=text;
+      msg1.className='cs-msg '+(ok?'ok':'er');
+      msg1.style.display='block';
+    }
+    function hideMsg(){msg1.style.display='none';}
+
+    function addRow(sku,desc,lote,val,dias,qtd,status,acao){
+      const tr=document.createElement('tr');
+      const n=tbody.children.length+1;
+      let acaoHtml='—';
+      if(acao==='retirar') acaoHtml='<span class="cs-bloq">RETIRAR</span>';
+      if(acao==='fefo') acaoHtml='<span class="cs-fefo">SAIR 1º</span>';
+      tr.innerHTML=`
+        <td>${n}</td>
+        <td><b>${sku}</b></td>
+        <td>${desc}</td>
+        <td>${lote}</td>
+        <td>${val}</td>
+        <td>${dias}</td>
+        <td>${qtd}</td>
+        <td><span class="cs-tag t${status}">${['','Vencido','Crítico','Alerta','Atenção','OK'][status]}</span></td>
+        <td>${acaoHtml}</td>
+      `;
+      tbody.appendChild(tr);
+      updateKpis();
+    }
+
+    function updateKpis(){
+      const rows=[...tbody.querySelectorAll('tr')];
+      const vencido=rows.filter(r=>r.querySelector('.t1')).length;
+      const critico=rows.filter(r=>r.querySelector('.t2')).length;
+      const alerta=rows.filter(r=>r.querySelector('.t3')).length;
+      const ok=rows.filter(r=>r.querySelector('.t5')).length;
+      const risco=vencido+critico+alerta;
+      const total=rows.length;
+      $('csKpi1').textContent=vencido;
+      $('csKpi2').textContent=critico;
+      $('csKpi3').textContent=alerta;
+      $('csKpi5').textContent=ok;
+      $('csKpiR').textContent=risco;
+      const pct=total?(risco/total*100).toFixed(0):0;
+      $('csKpiR').nextElementSibling.textContent=pct+'%';
+    }
+
+    async function play(){
+      if(running)return;running=true;
+      setTab(1);
+      $('csSku').value='';
+      $('csLote').value='';
+      $('csVal').value='';
+      $('csQtd').value='';
+      tbody.innerHTML='';
+      hideMsg();
+
+      await sleep(600);
+      await type($('csSku'),'789123456');
+      await sleep(200);
+      await type($('csLote'),'L2026-04');
+      await sleep(200);
+      $('csVal').value='2026-10-18';
+      await sleep(200);
+      await type($('csQtd'),'24');
+      await sleep(400);
+      $('csBtnAdd').style.transform='translateY(-1px)';
+      $('csBtnAdd').style.filter='brightness(1.15)';
+      await sleep(200);
+      $('csBtnAdd').style.transform='';
+      $('csBtnAdd').style.filter='';
+      showMsg('✔ Lote L2026-04 adicionado.');
+      await sleep(1200);
+
+      setTab(2);
+      await sleep(600);
+      addRow('789123456','Arroz Integral 1kg','L2026-04','18/10/2026',43,24,5,'fefo');
+      await sleep(1800);
+
+      setTab(1);
+      await sleep(600);
+      hideMsg();
+      $('csSku').value='';
+      $('csLote').value='';
+      $('csVal').value='';
+      $('csQtd').value='';
+      await sleep(300);
+      await type($('csSku'),'789987654');
+      await sleep(200);
+      await type($('csLote'),'L2025-12');
+      await sleep(200);
+      $('csVal').value='2025-08-20';
+      await sleep(200);
+      await type($('csQtd'),'8');
+      await sleep(400);
+      $('csBtnAdd').style.transform='translateY(-1px)';
+      $('csBtnAdd').style.filter='brightness(1.15)';
+      await sleep(200);
+      $('csBtnAdd').style.transform='';
+      $('csBtnAdd').style.filter='';
+      showMsg('✔ Lote L2025-12 adicionado.');
+      await sleep(1200);
+
+      setTab(2);
+      await sleep(600);
+      addRow('789987654','Feijão Carioca 1kg','L2025-12','20/08/2025',-381,8,1,'retirar');
+      await sleep(2500);
+
+      await sleep(2000);
+      running=false;
+      play();
+    }
+
+    const ioSim=new IntersectionObserver(entries=>{
+      entries.forEach(e=>{
+        if(e.isIntersecting&&!running) play();
+      });
+    },{threshold:0.4});
+    ioSim.observe(sim);
+  })();
+
+  /* ============================================
+     ANIMAÇÃO DA MINI-EMULAÇÃO GAE
+     ============================================ */
+  (function(){
+    const sim=document.getElementById('gaeSim');
+    if(!sim)return;
+    const $=s=>sim.querySelector(s);
+    const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+    const upload=$('#gsUpload');
+    const drop=$('#gsDrop');
+    const fileBox=$('#gsFile');
+    const fileName=$('#gsFileName');
+    const bar=$('#gsBar');
+    const barFill=$('#gsBar i');
+    const dash=$('#gsDash');
+    const sec=$('#gsSec');
+    const tbody=$('#gsTbody');
+    const btnExp=$('#gsBtnExp');
+    let running=false;
+
+    function hide(el){el.classList.add('gs-hide');}
+    function show(el){el.classList.remove('gs-hide');}
+
+    function type(el,text,speed=60){
+      return new Promise(resolve=>{
+        el.textContent='';
+        el.classList.add('gs-typing');
+        let i=0;
+        const tick=()=>{
+          if(i>=text.length){el.classList.remove('gs-typing');resolve();return;}
+          el.textContent+=text[i];i++;
+          setTimeout(tick,speed);
+        };
+        tick();
+      });
+    }
+
+    function countUp(el,target,duration=800){
+      return new Promise(resolve=>{
+        const start=0;
+        const startTime=performance.now();
+        const step=now=>{
+          const p=Math.min((now-startTime)/duration,1);
+          el.textContent=Math.round(start+(target-start)*p);
+          if(p<1)requestAnimationFrame(step);
+          else resolve();
+        };
+        requestAnimationFrame(step);
+      });
+    }
+
+    function addRow(sku,desc,filial,est,situacao,acao,tagClass){
+      const tr=document.createElement('tr');
+      tr.innerHTML=`
+        <td><b>${sku}</b></td>
+        <td>${desc}</td>
+        <td>${filial}</td>
+        <td>${est}</td>
+        <td><span class="gs-tag ${tagClass}">${situacao}</span></td>
+        <td>${acao}</td>
+      `;
+      tr.style.opacity='0';
+      tr.style.transform='translateY(6px)';
+      tr.style.transition='all .25s ease';
+      tbody.appendChild(tr);
+      requestAnimationFrame(()=>{tr.style.opacity='1';tr.style.transform='none';});
+    }
+
+    async function play(){
+      if(running)return;running=true;
+      hide(fileBox);hide(bar);hide(dash);hide(sec);
+      show(upload);
+      drop.classList.remove('hot');
+      barFill.style.width='0%';
+      tbody.innerHTML='';
+      sim.querySelectorAll('[data-gs-count]').forEach(el=>el.textContent='0');
+
+      await sleep(600);
+      drop.classList.add('hot');
+      await sleep(400);
+      show(fileBox);
+      await type(fileName,'planilha_winthor.xlsx');
+      await sleep(300);
+      show(bar);
+      await sleep(200);
+
+      for(let i=0;i<=100;i+=5){
+        barFill.style.width=i+'%';
+        await sleep(40);
+      }
+      await sleep(400);
+
+      hide(upload);
+      show(dash);
+      await sleep(400);
+
+      const nums=[...sim.querySelectorAll('[data-gs-count]')];
+      for(const el of nums){
+        await countUp(el,parseInt(el.dataset.gsCount),600);
+        await sleep(100);
+      }
+      await sleep(400);
+
+      show(sec);
+      const rows=[
+        ['789100','Arroz Integral 1kg','Matriz',124,'Sem venda','Transferir','sem'],
+        ['789101','Feijão Carioca 1kg','Filial 2',8,'Estoque baixo','Comprar','compra'],
+        ['789102','Óleo de Soja 900ml','Filial 3',312,'Sobra','Reduzir pedido','filial'],
+        ['789103','Café Torrado 500g','Matriz',-6,'Negativo','Urgente','alta']
+      ];
+      for(const r of rows){addRow(...r);await sleep(350);}
+
+      await sleep(600);
+      btnExp.style.transform='translateY(-1px)';
+      btnExp.style.filter='brightness(1.15)';
+      await sleep(250);
+      btnExp.style.transform='';
+      btnExp.style.filter='';
+
+      await sleep(3000);
+      running=false;
+      play();
+    }
+
+    const ioGae=new IntersectionObserver(entries=>{
+      entries.forEach(e=>{
+        if(e.isIntersecting&&!running) play();
+      });
+    },{threshold:0.4});
+    ioGae.observe(sim);
+  })();
+
+  /* ============================================
+     FUNDO REATIVO: ROTAS + TRÁFEGO + TOPOLOGIA
+     ============================================ */
+  (function(){
+    const canvas=document.getElementById('fluxo');
+    if(!canvas)return;
+    const ctx=canvas.getContext('2d');
+
+    let W,H,DPR=1;
+    function resize(){
+      DPR=Math.min(window.devicePixelRatio||1,2);
+      W=window.innerWidth;
+      H=window.innerHeight;
+      canvas.width=W*DPR;
+      canvas.height=H*DPR;
+      canvas.style.width=W+'px';
+      canvas.style.height=H+'px';
+      ctx.setTransform(DPR,0,0,DPR,0,0);
+    }
+    window.addEventListener('resize',resize);
+    resize();
+
+    const cores={
+      coral:'rgba(224,122,95,',
+      mostarda:'rgba(212,160,23,',
+      musgo:'rgba(107,142,107,',
+      cinza:'rgba(90,90,82,'
+    };
+
+    function criarRota(){
+      const rotas=[];
+      const total=Math.floor((W+H)/160);
+      for(let i=0;i<total;i++){
+        const vertical=Math.random()>.5;
+        let x, y, ang, len;
+        if(vertical){
+          x=Math.random()*W;
+          y=Math.random()>.5?0:H;
+          ang=Math.PI/2+(Math.random()-.5)*.25;
+          len=H*1.4;
+        }else{
+          x=Math.random()>.5?0:W;
+          y=Math.random()*H;
+          ang=(Math.random()-.5)*.25;
+          len=W*1.4;
+        }
+        rotas.push({
+          x,y,
+          ang,
+          len,
+          vx:Math.cos(ang),
+          vy:Math.sin(ang),
+          cor:[cores.coral,cores.mostarda,cores.musgo,cores.cinza][Math.floor(Math.random()*4)]
+        });
+      }
+      return rotas;
+    }
+
+    let rotas=criarRota();
+
+    const particulas=Array.from({length:Math.floor((W+H)/70)},()=>{
+      const rota=rotas[Math.floor(Math.random()*rotas.length)];
+      const t=Math.random()*rota.len;
+      return{
+        rota,
+        t,
+        vel:0.3+Math.random()*0.8,
+        tamanho:1+Math.random()*1.5,
+        alpha:0.15+Math.random()*0.35,
+        cor:rota.cor
+      };
+    });
+
+    function desenharRota(r){
+      const x2=r.x+r.vx*r.len;
+      const y2=r.y+r.vy*r.len;
+      ctx.beginPath();
+      ctx.moveTo(r.x,r.y);
+      ctx.lineTo(x2,y2);
+      ctx.strokeStyle=r.cor+'0.08)';
+      ctx.lineWidth=1;
+      ctx.stroke();
+    }
+
+    function desenharParticula(p){
+      const rx=p.rota.x+p.rota.vx*p.t;
+      const ry=p.rota.y+p.rota.vy*p.t;
+
+      const tx=rx-p.rota.vx*18;
+      const ty=ry-p.rota.vy*18;
+      const grad=ctx.createLinearGradient(tx,ty,rx,ry);
+      grad.addColorStop(0,p.cor+'0)');
+      grad.addColorStop(1,p.cor+p.alpha+')');
+
+      ctx.beginPath();
+      ctx.moveTo(tx,ty);
+      ctx.lineTo(rx,ry);
+      ctx.strokeStyle=grad;
+      ctx.lineWidth=p.tamanho*1.6;
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.arc(rx,ry,p.tamanho,0,Math.PI*2);
+      ctx.fillStyle=p.cor+(p.alpha+.15)+')';
+      ctx.fill();
+    }
+
+    function conectarParticulas(){
+      for(let i=0;i<particulas.length;i++){
+        const p1=particulas[i];
+        const rx1=p1.rota.x+p1.rota.vx*p1.t;
+        const ry1=p1.rota.y+p1.rota.vy*p1.t;
+        for(let j=i+1;j<particulas.length;j++){
+          const p2=particulas[j];
+          const rx2=p2.rota.x+p2.rota.vx*p2.t;
+          const ry2=p2.rota.y+p2.rota.vy*p2.t;
+          const dx=rx1-rx2;
+          const dy=ry1-ry2;
+          const dist=Math.sqrt(dx*dx+dy*dy);
+          if(dist<110){
+            ctx.beginPath();
+            ctx.moveTo(rx1,ry1);
+            ctx.lineTo(rx2,ry2);
+            ctx.strokeStyle=p1.cor+(0.04*(1-dist/110))+')';
+            ctx.lineWidth=0.6;
+            ctx.stroke();
+          }
+        }
+      }
+    }
+
+    function animar(){
+      ctx.clearRect(0,0,W,H);
+      rotas.forEach(desenharRota);
+      particulas.forEach(p=>{
+        p.t+=p.vel;
+        if(p.t>p.rota.len){
+          p.rota=rotas[Math.floor(Math.random()*rotas.length)];
+          p.t=0;
+          p.cor=p.rota.cor;
+        }
+        desenharParticula(p);
+      });
+      conectarParticulas();
+      requestAnimationFrame(animar);
+    }
+
+    window.addEventListener('resize',()=>{
+      rotas=criarRota();
+    });
+
+    animar();
+  })();
+
+   /* ============================================
+   GRÁFICO EM LINHAS — SEM FATURAMENTO
+   ============================================ */
+(function(){
+  function initChart(){
+    if(typeof ApexCharts === 'undefined'){
+      console.error('ApexCharts não carregou.');
+      document.getElementById('chartVarejo').innerHTML =
+        '<p style="color:var(--coral);padding:24px;text-align:center;font-family:IBM Plex Mono,monospace;">'+
+        '⚠️ ApexCharts não carregou. Verifique o CDN.</p>';
+      return;
+    }
+
+    const chartEl = document.getElementById('chartVarejo');
+    if(!chartEl) return;
+
+    const mostarda  = '#D4A017';
+    const coral     = '#E07A5F';
+    const terroso   = '#8C5A3C';
+
+    const options = {
+      chart:{
+        type:'line',
+        height:450,
+        background:'transparent',
+        toolbar:{show:false},
+        fontFamily:'IBM Plex Mono, monospace',
+        animations:{enabled:true,easing:'easeinout',speed:1200}
+      },
+      theme:{mode:'dark'},
+      colors:[mostarda,coral,terroso],
+      series:[
+        {name:'Lucro líquido estimado', data:[17.7,18.3,18.75,21.75]},
+        {name:'Perdas totais',          data:[9.8,10.2,10.5,11.6]},
+        {name:'Perdas por validade',    data:[1.76,1.84,1.89,2.09]}
+      ],
+      xaxis:{
+        categories:['1º trimestre de 2025','2º trimestre de 2025','3º trimestre de 2025','4º trimestre de 2025'],
+        labels:{style:{colors:'#B8B8AE',fontSize:'12px'}}
+      },
+      yaxis:{
+        title:{
+          text:'R$ bi',
+          style:{color:'#B8B8AE',fontSize:'11px'}
+        },
+        labels:{
+          formatter:(val)=>`R$ ${val.toLocaleString('pt-BR')}`,
+          style:{colors:'#B8B8AE',fontSize:'11px'}
+        }
+      },
+      grid:{
+        borderColor:'#2A2D26',
+        strokeDashArray:3
+      },
+      legend:{show:false},
+      stroke:{
+        curve:'smooth',
+        width:[3,3,2],
+        dashArray:[0,0,5]
+      },
+      markers:{
+        size:[5,5,4],
+        colors:['#131612'],
+        strokeColors:[mostarda,coral,terroso],
+        strokeWidth:2,
+        hover:{size:7}
+      },
+      tooltip:{
+        theme:'dark',
+        style:{fontSize:'12px',fontFamily:'IBM Plex Mono, monospace'},
+        y:{formatter:(val)=>`R$ ${val.toLocaleString('pt-BR')} bi`}
+      }
+    };
+
+    new ApexCharts(chartEl, options).render();
+    console.log('Gráfico Varejo renderizado');
+  }
+
+  if(document.readyState === 'loading'){
+    document.addEventListener('DOMContentLoaded', initChart);
+  } else {
+    initChart();
+  }
+})();
+
+  </script>
+</body>
+</html>
