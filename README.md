@@ -10,7 +10,7 @@
 
 ## O que é este projeto?
 
-Esta é uma **apresentação interativa** construída como trabalho de faculdade para a disciplina em Análise e Desenvolvimento de Sistemas (ADS). O objetivo não era apenas cumprir uma entrega acadêmica: era mostrar como duas ferramentas simples — desenvolvidas a partir de um problema real observado no dia a dia do varejo alimentar — podem reduzir perdas de estoque e devolver visibilidade para quem opera o negócio.
+Esta é uma **apresentação interativa** construída como trabalho de faculdade para a disciplina em Análise e Desenvolvimento de Sistemas (ADS). O objetivo não era apenas cumprir uma entrega acadêmica: era mostrar como duas ferramentas simples — desenvolvidas a partir de um problema real observado no dia a dia — podem reduzir perdas de estoque e devolver visibilidade para quem opera o negócio.
 
 O projeto foi pensado como uma **landing page narrativa**: rolagem progressiva, dados do setor, mini-emulações das ferramentas e argumentação direta sobre o problema.
 
