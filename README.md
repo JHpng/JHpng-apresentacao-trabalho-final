@@ -1,6 +1,6 @@
 # Estoque quebrando em silêncio
 
-> Trabalho acadêmico de ADS com aplicação real no varejo alimentar brasileiro.
+> Trabalho acadêmico de ADS com aplicação real em base de dados de exemplo do varejo alimentar brasileiro.
 
 [![Status](https://img.shields.io/badge/status-concluído-059669.svg)]()
 [![Tecnologias](https://img.shields.io/badge/tech-HTML%20%7C%20CSS%20%7C%20JS%20%7C%20ApexCharts-E07A5F.svg)]()
